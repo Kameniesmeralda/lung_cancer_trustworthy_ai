@@ -6,10 +6,10 @@ import time
 # -------------------------------------------------------------------------
 
 def run_federated_learning():
-    print("🚀 Démarrage du Federated Learning...")
+    print(" Démarrage du Federated Learning...")
 
     # 1. Lancer le serveur FL
-    print("🟦 Lancement du serveur...")
+    print(" Lancement du serveur...")
     server_process = subprocess.Popen(
         ["python", "federated/server.py"],
     )
@@ -21,7 +21,7 @@ def run_federated_learning():
     client_processes = []
     num_clients = 5
 
-    print("🟩 Lancement des 5 clients...")
+    print(" Lancement des 5 clients...")
 
     for i in range(num_clients):
         cmd = [
@@ -38,7 +38,7 @@ def run_federated_learning():
 
     # 4. Arrêter le serveur
     server_process.terminate()
-    print("🎉 Federated Learning terminé.")
+    print(" Federated Learning terminé.")
 
 
 if __name__ == "__main__":

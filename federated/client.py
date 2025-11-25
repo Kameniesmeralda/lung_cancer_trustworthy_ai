@@ -58,43 +58,61 @@ class LungClient(fl.client.NumPyClient):
         state_dict = {k: torch.tensor(v) for k, v in params_dict}
         self.model.load_state_dict(state_dict, strict=True)
 
-    def fit(self, parameters, config=None):
-        print("▶️ Client : Entraînement local...")
+    def fit(self, parameters, config):
+        print(" Client : Entraînement local...")
         self.set_parameters(parameters)
 
         self.model.train()
-        for images, labels in self.train_loader:
-            images, labels = images.to(DEVICE), labels.to(DEVICE)
-            self.optimizer.zero_grad()
-            outputs = self.model(images)
-            loss = self.criterion(outputs, labels)
-            loss.backward()
-            self.optimizer.step()
+        epochs = int(config.get("local_epochs", 1))
 
-        print("✔️ Entraînement terminé.")
-        return self.get_parameters(), len(self.train_loader.dataset), {}
+        running_loss = 0.0
+        total = 0
 
-    def evaluate(self, parameters, config=None):
-        print("📊 Client : Évaluation locale...")
+        for _ in range(epochs):
+            for images, labels in self.train_loader:
+                images, labels = images.to(DEVICE), labels.to(DEVICE)
+                self.optimizer.zero_grad()
+                outputs = self.model(images)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.optimizer.step()
+
+                running_loss += loss.item() * images.size(0)
+                total += labels.size(0)
+
+        avg_loss = running_loss / total if total > 0 else 0.0
+
+        print(" Entraînement terminé.")
+        #  très important : renvoyer la loss locale dans metrics
+        return self.get_parameters(), total, {"loss": float(avg_loss)}
+
+    def evaluate(self, parameters, config):
+        print(" Client : Évaluation locale...")
         self.set_parameters(parameters)
-        self.model.eval()
 
+        self.model.eval()
+        running_loss = 0.0
         correct = 0
         total = 0
-        loss_total = 0.0
 
         with torch.no_grad():
             for images, labels in self.val_loader:
                 images, labels = images.to(DEVICE), labels.to(DEVICE)
                 outputs = self.model(images)
                 loss = self.criterion(outputs, labels)
-                loss_total += loss.item() * images.size(0)
+
+                running_loss += loss.item() * images.size(0)
                 _, predicted = outputs.max(1)
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
 
-        accuracy = correct / total
-        return float(loss_total / total), total, {"accuracy": accuracy}
+        avg_loss = running_loss / total if total > 0 else 0.0
+        acc = correct / total if total > 0 else 0.0
+
+        print(f"    Loss locale = {avg_loss:.4f}, Acc = {acc * 100:.2f}%")
+
+        # Flower attend : (loss, num_examples, metrics_dict)
+        return float(avg_loss), total, {"accuracy": float(acc)}
 
 
 # -------------------------------------------------------------------------
@@ -106,7 +124,7 @@ if __name__ == "__main__":
     parser.add_argument("--client_id", type=int, required=True)
     args = parser.parse_args()
 
-    print(f"🟦 Client {args.client_id} démarré")
+    print(f" Client {args.client_id} démarré")
 
     train_loader, val_loader = load_client_data(args.client_id)
 

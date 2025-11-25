@@ -27,7 +27,7 @@ def create_structure():
 def distribute_images():
     """Distribue les images de train/ et val/ entre les 5 clients."""
     for split in ["train", "val"]:
-        print(f"📁 Distribution des images de {split}/ ...")
+        print(f" Distribution des images de {split}/ ...")
         classes = os.listdir(os.path.join("data", split))
 
         for c in classes:
@@ -55,4 +55,4 @@ def distribute_images():
 if __name__ == "__main__":
     create_structure()
     distribute_images()
-    print("🎉 Partition terminée : les clients ont leurs données!")
+    print(" Partition terminée : les clients ont leurs données!")
