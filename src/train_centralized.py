@@ -1,96 +1,112 @@
-import sys
 import os
+import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import argparse
 import json
-from datetime import datetime
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-
-from src.dataset import get_dataloaders
 from src.model import SimpleLungCNN
-from src.config import DEVICE, NUM_CLASSES, LEARNING_RATE as CFG_LR
+from src.config import TRAIN_DIR, VAL_DIR, IMG_SIZE, DEVICE, BATCH_SIZE, NUM_WORKERS, NUM_CLASSES
 
+def get_transforms():
+    return transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize(IMG_SIZE),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.5]),
+    ])
 
-RESULTS_DIR = "results"
-os.makedirs(RESULTS_DIR, exist_ok=True)
+def compute_class_weights(train_dataset: datasets.ImageFolder) -> torch.Tensor:
+    targets = torch.tensor(train_dataset.targets)
+    counts = torch.bincount(targets, minlength=len(train_dataset.classes)).float()
+    weights = 1.0 / (counts + 1e-8)
+    weights = weights / weights.mean()  # normalize
+    return weights
 
+def accuracy_from_logits(logits, labels):
+    preds = torch.argmax(logits, dim=1)
+    return (preds == labels).float().mean().item()
 
-def train_one_run(epochs: int, lr: float, run_name: str):
-    print(f"📁 Chargement des données...")
-    train_loader, val_loader, _ = get_dataloaders()
+def main():
+    os.makedirs("results", exist_ok=True)
 
-    print(f"🧠 Initialisation du modèle (lr={lr}, epochs={epochs})...")
-    model = SimpleLungCNN(num_classes=NUM_CLASSES).to(DEVICE)
+    transform = get_transforms()
+    train_dataset = datasets.ImageFolder(TRAIN_DIR, transform=transform)
+    val_dataset = datasets.ImageFolder(VAL_DIR, transform=transform)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    print("\n✅ class_to_idx (IMPORTANT):")
+    print(train_dataset.class_to_idx)
 
-    history = {
-        "epoch": [],
-        "train_loss": [],
-        "train_acc": [],
-        "val_loss": [],
-        "val_acc": [],
-    }
+    # Quick sanity check: label range
+    print("\n✅ num_classes:", len(train_dataset.classes))
+    assert len(train_dataset.classes) == NUM_CLASSES, \
+        f"NUM_CLASSES={NUM_CLASSES} but ImageFolder found {len(train_dataset.classes)}"
 
-    print("🚀 Début de l'entraînement centralisé...")
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
+    val_loader   = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
 
-    for epoch in range(1, epochs + 1):
-        # ---------- TRAIN ----------
+    # ----- Weighted loss (AUTO, correct order) -----
+    class_weights = compute_class_weights(train_dataset).to(DEVICE)
+    print("\n✅ Using Weighted CrossEntropyLoss with weights (same order as class_to_idx):")
+    print(class_weights.detach().cpu().tolist())
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    model = SimpleLungCNN().to(DEVICE)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+    num_epochs = 5
+
+    history = {"epoch": [], "train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
+
+    for epoch in range(1, num_epochs + 1):
+        # ---- TRAIN ----
         model.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
+        train_loss_sum = 0.0
+        train_acc_sum = 0.0
+        n_train = 0
 
-        for images, labels in train_loader:
-            images, labels = images.to(DEVICE), labels.to(DEVICE)
-
+        for x, y in train_loader:
+            x, y = x.to(DEVICE), y.to(DEVICE)
             optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+            logits = model(x)
+            loss = criterion(logits, y)
             loss.backward()
             optimizer.step()
 
-            running_loss += loss.item() * images.size(0)
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
+            bs = x.size(0)
+            train_loss_sum += loss.item() * bs
+            train_acc_sum += accuracy_from_logits(logits, y) * bs
+            n_train += bs
 
-        train_loss = running_loss / total
-        train_acc = correct / total
+        train_loss = train_loss_sum / n_train
+        train_acc = train_acc_sum / n_train
 
-        # ---------- VALIDATION ----------
+        # ---- VAL ----
         model.eval()
-        val_loss_total = 0.0
-        val_correct = 0
-        val_total = 0
+        val_loss_sum = 0.0
+        val_acc_sum = 0.0
+        n_val = 0
 
         with torch.no_grad():
-            for images, labels in val_loader:
-                images, labels = images.to(DEVICE), labels.to(DEVICE)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
+            for x, y in val_loader:
+                x, y = x.to(DEVICE), y.to(DEVICE)
+                logits = model(x)
+                loss = criterion(logits, y)
 
-                val_loss_total += loss.item() * images.size(0)
-                _, predicted = outputs.max(1)
-                val_total += labels.size(0)
-                val_correct += predicted.eq(labels).sum().item()
+                bs = x.size(0)
+                val_loss_sum += loss.item() * bs
+                val_acc_sum += accuracy_from_logits(logits, y) * bs
+                n_val += bs
 
-        val_loss = val_loss_total / val_total
-        val_acc = val_correct / val_total
+        val_loss = val_loss_sum / n_val
+        val_acc = val_acc_sum / n_val
 
-        # ---------- LOG ----------
-        print(f"Époque {epoch}/{epochs}")
-        print(f"  🔹 Train : loss={train_loss:.4f}, acc={train_acc*100:.2f}%")
-        print(f"  🔹 Val   : loss={val_loss:.4f}, acc={val_acc*100:.2f}%")
+        print(f"\nEpoch {epoch}/{num_epochs}")
+        print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc*100:.2f}%")
+        print(f"  Val   Loss: {val_loss:.4f} | Val   Acc: {val_acc*100:.2f}%")
 
         history["epoch"].append(epoch)
         history["train_loss"].append(train_loss)
@@ -98,80 +114,14 @@ def train_one_run(epochs: int, lr: float, run_name: str):
         history["val_loss"].append(val_loss)
         history["val_acc"].append(val_acc)
 
-    # ---------- SAUVEGARDE DU MODÈLE ----------
-    model_path = os.path.join(RESULTS_DIR, f"model_centralized_{run_name}.pth")
-    torch.save(model.state_dict(), model_path)
-    print(f" Modèle sauvegardé dans {model_path}")
-
-    # ---------- SAUVEGARDE DE L'HISTORIQUE ----------
-    history_path = os.path.join(RESULTS_DIR, f"history_centralized_{run_name}.json")
-    with open(history_path, "w") as f:
+    # Save model + history
+    torch.save(model.state_dict(), "results/model_centralized_weighted.pth")
+    with open("results/history_centralized_weighted.json", "w") as f:
         json.dump(history, f, indent=4)
-    print(f" Historique sauvegardé dans {history_path}")
 
-    # ---------- GRAPHIQUES ----------
-    df = pd.DataFrame(history)
-
-    # Courbe des pertes
-    sns.set(style="whitegrid")
-    plt.figure(figsize=(8, 5))
-    sns.lineplot(x="epoch", y="train_loss", data=df, label="Train loss")
-    sns.lineplot(x="epoch", y="val_loss", data=df, label="Val loss")
-    plt.title(f"Courbe de loss (run: {run_name})")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-    loss_fig_path = os.path.join(RESULTS_DIR, f"loss_curve_{run_name}.png")
-    plt.savefig(loss_fig_path, bbox_inches="tight")
-    plt.close()
-    print(f" Courbe de loss sauvegardée dans {loss_fig_path}")
-
-    # Courbe des accuracies
-    plt.figure(figsize=(8, 5))
-    sns.lineplot(x="epoch", y="train_acc", data=df, label="Train acc")
-    sns.lineplot(x="epoch", y="val_acc", data=df, label="Val acc")
-    plt.title(f"Courbe d'accuracy (run: {run_name})")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    acc_fig_path = os.path.join(RESULTS_DIR, f"accuracy_curve_{run_name}.png")
-    plt.savefig(acc_fig_path, bbox_inches="tight")
-    plt.close()
-    print(f" Courbe d'accuracy sauvegardée dans {acc_fig_path}")
-
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=5,
-        help="Nombre d'époques pour l'entraînement centralisé",
-    )
-    parser.add_argument(
-        "--lr",
-        type=float,
-        default=CFG_LR,
-        help="Learning rate (par défaut: valeur du config.py)",
-    )
-    parser.add_argument(
-        "--run_name",
-        type=str,
-        default=None,
-        help="Nom du run (pour distinguer les expériences)",
-    )
-
-    args = parser.parse_args()
-
-    # Si aucun run_name n'est donné, on en génère un avec la date/heure
-    if args.run_name is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        args.run_name = f"run_{timestamp}"
-
-    return args
-
+    print("\n💾 Saved:")
+    print("  - results/model_centralized_weighted.pth")
+    print("  - results/history_centralized_weighted.json")
 
 if __name__ == "__main__":
-    args = parse_args()
-    train_one_run(epochs=args.epochs, lr=args.lr, run_name=args.run_name)
+    main()

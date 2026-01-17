@@ -1,5 +1,7 @@
 import sys
 import os
+import json
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import flwr as fl
@@ -8,100 +10,141 @@ from flwr.server.strategy import FedAvg
 from flwr.common import parameters_to_ndarrays
 
 import torch
+from torchvision import datasets, transforms
 
 from src.model import SimpleLungCNN
-from src.config import DEVICE
+from src.config import DEVICE, IMG_SIZE
 
 
 # ---------------------------------------------------------------------
-# Agrégation pondérée des métriques
+# Compute GLOBAL class weights (all clients merged)
+# ---------------------------------------------------------------------
+def compute_global_class_weights():
+    train_root = "data"
+    counts = {}
+
+    transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize(IMG_SIZE),
+        transforms.ToTensor(),
+    ])
+
+    last_dataset = None
+
+    for d in os.listdir(train_root):
+        if d.startswith("client_"):
+            train_path = os.path.join(train_root, d, "train")
+            dataset = datasets.ImageFolder(train_path, transform=transform)
+            last_dataset = dataset  # keep reference for class names
+
+            for _, label in dataset:
+                counts[label] = counts.get(label, 0) + 1
+
+    if last_dataset is None or len(counts) == 0:
+        raise RuntimeError("No client_* train folders found under ./data")
+
+    print("\n✅ GLOBAL TRAIN counts (all clients merged):")
+    for k in sorted(counts.keys()):
+        print(f"  idx={k} -> {last_dataset.classes[k]}: {counts[k]}")
+
+    total = sum(counts.values())
+    num_classes = len(last_dataset.classes)
+
+    # weights[i] = total / (num_classes * count_i)
+    weights = [total / (num_classes * counts[i]) for i in range(num_classes)]
+
+    print("\n✅ GLOBAL class weights (same order as class_to_idx):")
+    for i, w in enumerate(weights):
+        print(f"  w[{i}] for {last_dataset.classes[i]} = {w:.4f}")
+
+    return weights
+
+
+# ---------------------------------------------------------------------
+# Metric aggregation
 # ---------------------------------------------------------------------
 def aggregate_fit_metrics(metrics):
-    if len(metrics) == 0:
+    if not metrics:
         return {}
-    total_examples = sum(num_examples for num_examples, _ in metrics)
-    avg_loss = sum(num_examples * m.get("loss", 0.0) for num_examples, m in metrics) / total_examples
-    return {"loss": float(avg_loss)}
+    total = sum(n for n, _ in metrics)
+    loss = sum(n * m.get("loss", 0.0) for n, m in metrics) / total
+    return {"loss": float(loss)}
 
 
 def aggregate_eval_metrics(metrics):
-    if len(metrics) == 0:
+    if not metrics:
         return {}
-    total_examples = sum(num_examples for num_examples, _ in metrics)
-    avg_acc = sum(num_examples * m.get("accuracy", 0.0) for num_examples, m in metrics) / total_examples
-    return {"accuracy": float(avg_acc)}
+    total = sum(n for n, _ in metrics)
+    acc = sum(n * m.get("accuracy", 0.0) for n, m in metrics) / total
+    return {"accuracy": float(acc)}
 
 
 # ---------------------------------------------------------------------
-# Custom FedAvg pour récupérer les derniers paramètres globaux
+# Custom FedAvg (store last parameters)
 # ---------------------------------------------------------------------
 class MyFedAvg(FedAvg):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.last_parameters = None   # stockage des poids globaux
+        self.last_parameters = None
 
     def aggregate_fit(self, rnd, results, failures):
-        aggregated_parameters, metrics = super().aggregate_fit(rnd, results, failures)
-
-        # Sauvegarde des paramètres de ce round
-        self.last_parameters = aggregated_parameters
-
-        return aggregated_parameters, metrics
+        params, metrics = super().aggregate_fit(rnd, results, failures)
+        self.last_parameters = params
+        return params, metrics
 
 
 # ---------------------------------------------------------------------
-# 3. Lancement du serveur FL
+# Start server
 # ---------------------------------------------------------------------
-def start_server(num_rounds: int = 5):
+def start_server(num_rounds=50):
+    print("🚀 Starting Federated Server (FedAvg) with GLOBAL weighted loss")
 
-    print(" Lancement du serveur Federated Learning (FedAvg)")
+    class_weights = compute_global_class_weights()
+
+    # ✅ Flower config values must be scalar (no list) -> send as JSON string
+    class_weights_json = json.dumps(class_weights)
 
     strategy = MyFedAvg(
         fraction_fit=1.0,
         fraction_evaluate=1.0,
-        min_fit_clients=3,
-        min_evaluate_clients=3,
-        min_available_clients=3,
+        min_fit_clients=5,
+        min_evaluate_clients=5,
+        min_available_clients=5,
 
-        on_fit_config_fn=lambda rnd: {"local_epochs": 1},
+        on_fit_config_fn=lambda rnd: {
+            "local_epochs": 5,
+            "class_weights_json": class_weights_json,  # ✅ string, allowed
+        },
+
         fit_metrics_aggregation_fn=aggregate_fit_metrics,
         evaluate_metrics_aggregation_fn=aggregate_eval_metrics,
     )
 
-    # Lancement serveur
     fl.server.start_server(
         server_address="127.0.0.1:8080",
         strategy=strategy,
         config=ServerConfig(num_rounds=num_rounds),
     )
 
-    # -----------------------------------------------------------------
-    # Sauvegarde du modèle global après le dernier round
-    # -----------------------------------------------------------------
-    print(" Sauvegarde du modèle fédéré global...")
+    print("💾 Saving final global federated model...")
 
-    final_parameters = strategy.last_parameters  # OK pour ta version
-
-    if final_parameters is None:
-        print(" ERREUR : Aucune information de paramètres récupérée.")
+    if strategy.last_parameters is None:
+        print("❌ ERROR: No final parameters captured (means FIT never succeeded).")
         return
 
-    final_ndarrays = parameters_to_ndarrays(final_parameters)
+    ndarrays = parameters_to_ndarrays(strategy.last_parameters)
 
-    global_model = SimpleLungCNN().to(DEVICE)
-
-    # chargement manuel
+    model = SimpleLungCNN().to(DEVICE)
     state_dict = {}
-    for (key, _), array in zip(global_model.state_dict().items(), final_ndarrays):
-        state_dict[key] = torch.tensor(array)
+    for (k, _), v in zip(model.state_dict().items(), ndarrays):
+        state_dict[k] = torch.tensor(v)
 
-    global_model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict)
 
     os.makedirs("results", exist_ok=True)
-    torch.save(global_model.state_dict(), "results/model_federated_round5.pth")
-
-    print(" Modèle fédéré sauvegardé dans results/model_federated_round5.pth")
+    torch.save(model.state_dict(), "results/model_federated_weighted_global_50_rounds.pth")
+    print("✅ Model saved: results/model_federated_weighted_global_50_rounds.pth")
 
 
 if __name__ == "__main__":
-    start_server(num_rounds=5)
+    start_server(num_rounds=50)

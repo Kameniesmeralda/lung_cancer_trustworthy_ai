@@ -1,0 +1,108 @@
+{
+  "model_path": "results/model_federated_weighted_global_50_rounds.pth",
+  "clients": {
+    "client_1": {
+      "num_val_samples": 13,
+      "class_order": [
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib",
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa",
+        "normal",
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa"
+      ],
+      "accuracy": 0.9230769230769231,
+      "macro_f1": 0.9285714285714286,
+      "weighted_f1": 0.9230769230769231,
+      "per_class_f1": {
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib": 1.0,
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa": 0.8571428571428571,
+        "normal": 1.0,
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa": 0.8571428571428571
+      },
+      "classification_report": "                                                  precision    recall  f1-score   support\n\n      adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib     1.0000    1.0000    1.0000         4\n   large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa     1.0000    0.7500    0.8571         4\n                                          normal     1.0000    1.0000    1.0000         2\nsquamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa     0.7500    1.0000    0.8571         3\n\n                                        accuracy                         0.9231        13\n                                       macro avg     0.9375    0.9375    0.9286        13\n                                    weighted avg     0.9423    0.9231    0.9231        13\n"
+    },
+    "client_2": {
+      "num_val_samples": 13,
+      "class_order": [
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib",
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa",
+        "normal",
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa"
+      ],
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "weighted_f1": 1.0,
+      "per_class_f1": {
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib": 1.0,
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa": 1.0,
+        "normal": 1.0,
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa": 1.0
+      },
+      "classification_report": "                                                  precision    recall  f1-score   support\n\n      adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib     1.0000    1.0000    1.0000         4\n   large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa     1.0000    1.0000    1.0000         4\n                                          normal     1.0000    1.0000    1.0000         2\nsquamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa     1.0000    1.0000    1.0000         3\n\n                                        accuracy                         1.0000        13\n                                       macro avg     1.0000    1.0000    1.0000        13\n                                    weighted avg     1.0000    1.0000    1.0000        13\n"
+    },
+    "client_3": {
+      "num_val_samples": 13,
+      "class_order": [
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib",
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa",
+        "normal",
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa"
+      ],
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "weighted_f1": 1.0,
+      "per_class_f1": {
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib": 1.0,
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa": 1.0,
+        "normal": 1.0,
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa": 1.0
+      },
+      "classification_report": "                                                  precision    recall  f1-score   support\n\n      adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib     1.0000    1.0000    1.0000         4\n   large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa     1.0000    1.0000    1.0000         4\n                                          normal     1.0000    1.0000    1.0000         2\nsquamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa     1.0000    1.0000    1.0000         3\n\n                                        accuracy                         1.0000        13\n                                       macro avg     1.0000    1.0000    1.0000        13\n                                    weighted avg     1.0000    1.0000    1.0000        13\n"
+    },
+    "client_4": {
+      "num_val_samples": 13,
+      "class_order": [
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib",
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa",
+        "normal",
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa"
+      ],
+      "accuracy": 0.9230769230769231,
+      "macro_f1": 0.9285714285714286,
+      "weighted_f1": 0.9230769230769231,
+      "per_class_f1": {
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib": 1.0,
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa": 0.8571428571428571,
+        "normal": 1.0,
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa": 0.8571428571428571
+      },
+      "classification_report": "                                                  precision    recall  f1-score   support\n\n      adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib     1.0000    1.0000    1.0000         4\n   large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa     1.0000    0.7500    0.8571         4\n                                          normal     1.0000    1.0000    1.0000         2\nsquamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa     0.7500    1.0000    0.8571         3\n\n                                        accuracy                         0.9231        13\n                                       macro avg     0.9375    0.9375    0.9286        13\n                                    weighted avg     0.9423    0.9231    0.9231        13\n"
+    },
+    "client_5": {
+      "num_val_samples": 20,
+      "class_order": [
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib",
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa",
+        "normal",
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa"
+      ],
+      "accuracy": 0.8,
+      "macro_f1": 0.7972222222222222,
+      "weighted_f1": 0.8138888888888889,
+      "per_class_f1": {
+        "adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib": 0.8333333333333334,
+        "large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa": 0.8,
+        "normal": 0.8888888888888888,
+        "squamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa": 0.6666666666666666
+      },
+      "classification_report": "                                                  precision    recall  f1-score   support\n\n      adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib     1.0000    0.7143    0.8333         7\n   large.cell.carcinoma_left.hilum_T2_N2_M0_IIIa     0.8000    0.8000    0.8000         5\n                                          normal     1.0000    0.8000    0.8889         5\nsquamous.cell.carcinoma_left.hilum_T1_N2_M0_IIIa     0.5000    1.0000    0.6667         3\n\n                                        accuracy                         0.8000        20\n                                       macro avg     0.8250    0.8286    0.7972        20\n                                    weighted avg     0.8750    0.8000    0.8139        20\n"
+    }
+  },
+  "fairness_gaps": {
+    "accuracy_gap": 0.19999999999999996,
+    "macro_f1_gap": 0.20277777777777783,
+    "best_accuracy_client": "client_2",
+    "worst_accuracy_client": "client_5",
+    "best_macro_f1_client": "client_2",
+    "worst_macro_f1_client": "client_5"
+  }
+}

@@ -38,6 +38,7 @@ def get_datasets():
 # ---------------------------
 def get_dataloaders():
     train_dataset, val_dataset, test_dataset = get_datasets()
+    print("class_to_idx:", train_dataset.class_to_idx)
 
     train_loader = DataLoader(
         train_dataset,

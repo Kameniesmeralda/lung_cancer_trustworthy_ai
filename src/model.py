@@ -1,33 +1,37 @@
+import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from torchvision import models
 
 
 class SimpleLungCNN(nn.Module):
     """
-    Petit CNN adapté pour des images pulmonaires en niveaux de gris (1 canal).
-    Suffisant pour un baseline Stage 1.
+    Architecture ResNet-18 adaptée pour l'imagerie pulmonaire.
     """
-    def __init__(self, num_classes=4):
+
+    def __init__(self, num_classes=4, pretrained=True):
         super(SimpleLungCNN, self).__init__()
 
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        # Charger ResNet-18 avec ou sans poids pré-entraînés
+        # 'weights' est la nouvelle norme PyTorch (remplace pretrained=True)
+        if pretrained:
+            self.model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        else:
+            self.model = models.resnet18(weights=None)
 
-        self.pool = nn.MaxPool2d(2, 2)
+        # ADAPTATION : Changer le premier canal (ResNet attend 3 canaux RGB, vous en avez 1)
+        # On remplace la première couche conv par une couche acceptant 1 canal
+        self.model.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False
+        )
 
-        # Après 3 pools successifs, une image 224x224 devient 28x28
-        self.fc1 = nn.Linear(64 * 28 * 28, 128)
-        self.fc2 = nn.Linear(128, num_classes)
+        # ADAPTATION : Changer la dernière couche (FC) pour vos 4 classes
+        num_ftrs = self.model.fc.in_features
+        self.model.fc = nn.Linear(num_ftrs, num_classes)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))   # 224 -> 112
-        x = self.pool(F.relu(self.conv2(x)))   # 112 -> 56
-        x = self.pool(F.relu(self.conv3(x)))   # 56  -> 28
-
-        x = x.view(x.size(0), -1)  # flatten
-
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-
-        return x
+        return self.model(x)

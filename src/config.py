@@ -17,7 +17,7 @@ BATCH_SIZE = 16
 NUM_WORKERS = 2
 
 EPOCHS = 5            # Low for testing — you will increase later
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-4
 
 # ----- DEVICE -----
 DEVICE = "cpu"

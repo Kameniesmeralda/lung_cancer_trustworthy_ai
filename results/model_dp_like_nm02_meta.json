@@ -1,0 +1,9 @@
+{
+  "base_model": "results/model_federated_weighted_global_50_rounds.pth",
+  "epochs": 5,
+  "clip_norm": 1.0,
+  "noise_multiplier": 0.2,
+  "lr": 0.0001,
+  "weight_decay": 0.0001,
+  "note": "DP-like clipping+noise without privacy accountant (no epsilon/delta computed)."
+}
